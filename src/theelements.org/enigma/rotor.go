@@ -61,3 +61,7 @@ func (r *Rotor) Get(letter rune, reverse bool) rune {
 func (r *Rotor) Turnover(position int32) bool {
 	return position == r.turnover
 }
+
+func (r *Rotor) String() string {
+	return r.description
+}
