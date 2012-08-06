@@ -22,6 +22,7 @@ import (
 	"flag"
 	"fmt"
 	"sort"
+	"sync"
 	"theelements.org/enigma"
 	"theelements.org/frequency"
 )
@@ -67,6 +68,34 @@ func (r results) Less(i, j int) bool {
 	return r[i].diff < r[j].diff
 }
 
+type AtomicInt struct {
+	value int32
+	lock  *sync.Mutex
+}
+
+func NewAtomicInt(value int32) *AtomicInt {
+	i := AtomicInt{}
+	i.value = value
+	i.lock = new(sync.Mutex)
+	return &i
+}
+
+func (i *AtomicInt) inc() {
+	i.lock.Lock()
+	i.value += 1
+	i.lock.Unlock()
+}
+
+func (i *AtomicInt) dec() {
+	i.lock.Lock()
+	i.value -= 1
+	i.lock.Unlock()
+}
+
+func (i *AtomicInt) val() int32 {
+	return i.value
+}
+
 var message = flag.String("message", "", "The encrypted message to crack.")
 var numResults = flag.Int("results", 3, "The number of results to display")
 
@@ -92,7 +121,7 @@ func main() {
 	startingPositions := permutations(s, true)
 
 	writer := make(chan *result)
-	counter := 0
+	counter := NewAtomicInt(0)
 	for e1 := rotorPermutations.Front(); e1 != nil; e1 = e1.Next() {
 		rotors := e1.Value.(*triple)
 		r1, r2, r3 := rotors.a.(*enigma.Rotor), rotors.b.(*enigma.Rotor), rotors.c.(*enigma.Rotor)
@@ -105,7 +134,7 @@ func main() {
 
 				m := enigma.NewMachine(r1, r2, r3, reflector, p1, p2, p3)
 				go run(m, message, writer)
-				counter += 1
+				counter.inc()
 			}
 		}
 	}
@@ -113,7 +142,7 @@ func main() {
 	resultList := make(results, *numResults)
 	size := 0
 	max := 0.0
-	for counter > 0 {
+	for counter.val() > 0 {
 		r := <-writer
 		if size < *numResults {
 			resultList[size] = r
@@ -130,7 +159,7 @@ func main() {
 			resultList[*numResults-1] = r
 			sort.Sort(resultList)
 		}
-		counter -= 1
+		counter.dec()
 	}
 
 	for _, r := range resultList {
