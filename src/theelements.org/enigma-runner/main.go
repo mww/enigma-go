@@ -21,6 +21,7 @@ import (
 	"container/list"
 	"flag"
 	"fmt"
+	"sort"
 	"theelements.org/enigma"
 	"theelements.org/frequency"
 )
@@ -47,12 +48,27 @@ func (t *triple) String() string {
 	return fmt.Sprintf("I'm a triple %s,%s,%s", t.a, t.b, t.c)
 }
 
-type enigmaResult struct {
-	message string
-	diff    float64
+type result struct {
+	message, config string
+	diff            float64
+}
+
+type results []*result
+
+func (r results) Len() int {
+	return len(r)
+}
+
+func (r results) Swap(i, j int) {
+	r[i], r[j] = r[j], r[i]
+}
+
+func (r results) Less(i, j int) bool {
+	return r[i].diff < r[j].diff
 }
 
 var message = flag.String("message", "", "The encrypted message to crack.")
+var numResults = flag.Int("results", 3, "The number of results to display")
 
 func main() {
 	flag.Parse()
@@ -65,9 +81,9 @@ func main() {
 	rotorPermutations := permutations(s, false)
 
 	reflectors := list.New()
-	//reflectors.PushBack(REFLECTOR_A)
+	reflectors.PushBack(REFLECTOR_A)
 	reflectors.PushBack(REFLECTOR_B)
-	//reflectors.PushBack(REFLECTOR_C)
+	reflectors.PushBack(REFLECTOR_C)
 
 	s = make([]interface{}, len(enigma.LETTERS))
 	for i, v := range enigma.LETTERS {
@@ -75,10 +91,12 @@ func main() {
 	}
 	startingPositions := permutations(s, true)
 
-	writer := make(chan *enigmaResult)
+	writer := make(chan *result)
+	counter := 0
 	for e1 := rotorPermutations.Front(); e1 != nil; e1 = e1.Next() {
 		rotors := e1.Value.(*triple)
 		r1, r2, r3 := rotors.a.(*enigma.Rotor), rotors.b.(*enigma.Rotor), rotors.c.(*enigma.Rotor)
+
 		for e2 := reflectors.Front(); e2 != nil; e2 = e2.Next() {
 			reflector := e2.Value.(*enigma.Rotor)
 			for e3 := startingPositions.Front(); e3 != nil; e3 = e3.Next() {
@@ -87,13 +105,36 @@ func main() {
 
 				m := enigma.NewMachine(r1, r2, r3, reflector, p1, p2, p3)
 				go run(m, message, writer)
+				counter += 1
 			}
 		}
 	}
 
-	for {
+	resultList := make(results, *numResults)
+	size := 0
+	max := 0.0
+	for counter > 0 {
 		r := <-writer
-		fmt.Printf("%s %f\n", r.message, r.diff)
+		if size < *numResults {
+			resultList[size] = r
+			if r.diff > max {
+				max = r.diff
+			}
+
+			size += 1
+			if size == *numResults {
+				sort.Sort(resultList)
+			}
+
+		} else if r.diff < max {
+			resultList[*numResults-1] = r
+			sort.Sort(resultList)
+		}
+		counter -= 1
+	}
+
+	for _, r := range resultList {
+		fmt.Printf("%f %s\n%s\n", r.diff, r.message, r.config)
 	}
 }
 
@@ -117,7 +158,7 @@ func permutations(items []interface{}, duplicates bool) *list.List {
 	return result
 }
 
-func run(m *enigma.Machine, message *string, writer chan *enigmaResult) {
+func run(m *enigma.Machine, message *string, writer chan *result) {
 	var buf bytes.Buffer
 	analysis := frequency.NewAnalysis()
 	for _, c := range *message {
@@ -125,6 +166,5 @@ func run(m *enigma.Machine, message *string, writer chan *enigmaResult) {
 		buf.WriteRune(l)
 		analysis.Add(l)
 	}
-	result := enigmaResult{buf.String(), analysis.Diff()}
-	writer <- &result
+	writer <- &result{buf.String(), m.String(), analysis.Diff()}
 }

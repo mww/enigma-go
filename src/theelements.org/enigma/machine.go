@@ -75,7 +75,7 @@ func (m *Machine) moveRotors() {
 
 func (m *Machine) String() string {
 	return fmt.Sprintf("KEY: %c%c%c\nROTORS: %s, %s, %s\nREFLECTOR: %s",
-		m.s1, m.s2, m.s3, m.r1, m.r2, m.r2, m.reflector)
+		m.s1, m.s2, m.s3, m.r1, m.r2, m.r3, m.reflector)
 }
 
 func getOutputIndex(r *Rotor, offset, inputIndex int32, reverse bool) int32 {

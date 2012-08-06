@@ -17,6 +17,8 @@ package frequency
 
 import "math"
 
+//import "fmt"
+
 var englishExpectedFrequency = map[rune]float64{
 	'A': 8.167,
 	'B': 1.492,
@@ -65,6 +67,7 @@ func NewAnalysis() *Analysis {
 func (a *Analysis) Add(c rune) {
 	a.characters[c] = a.characters[c] + 1
 	a.total += 1
+	//fmt.Printf("%c %f: total: %f\n", c, a.characters[c], a.total)
 }
 
 func (a *Analysis) Diff() float64 {
@@ -75,8 +78,10 @@ func (a *Analysis) Diff() float64 {
 			continue
 		}
 		actual := (count / a.total) * 100
-		expected := a.characters[k]
+		expected := englishExpectedFrequency[k]
 		diff += math.Abs(expected - actual)
+		//fmt.Printf("%c actual: %f expected: %f diff: %f\n", k, actual, expected, diff)
 	}
+	//fmt.Printf("Returning diff of: %f\n", diff)
 	return diff
 }
