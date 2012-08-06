@@ -80,19 +80,19 @@ func NewAtomicInt(value int32) *AtomicInt {
 	return &i
 }
 
-func (i *AtomicInt) inc() {
+func (i *AtomicInt) Inc() {
 	i.lock.Lock()
 	i.value += 1
 	i.lock.Unlock()
 }
 
-func (i *AtomicInt) dec() {
+func (i *AtomicInt) Dec() {
 	i.lock.Lock()
 	i.value -= 1
 	i.lock.Unlock()
 }
 
-func (i *AtomicInt) val() int32 {
+func (i *AtomicInt) Val() int32 {
 	return i.value
 }
 
@@ -134,7 +134,7 @@ func main() {
 
 				m := enigma.NewMachine(r1, r2, r3, reflector, p1, p2, p3)
 				go run(m, message, writer)
-				counter.inc()
+				counter.Inc()
 			}
 		}
 	}
@@ -142,7 +142,7 @@ func main() {
 	resultList := make(results, *numResults)
 	size := 0
 	max := 0.0
-	for counter.val() > 0 {
+	for counter.Val() > 0 {
 		r := <-writer
 		if size < *numResults {
 			resultList[size] = r
@@ -159,7 +159,7 @@ func main() {
 			resultList[*numResults-1] = r
 			sort.Sort(resultList)
 		}
-		counter.dec()
+		counter.Dec()
 	}
 
 	for _, r := range resultList {
