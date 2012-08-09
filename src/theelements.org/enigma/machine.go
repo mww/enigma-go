@@ -39,6 +39,20 @@ func NewMachine(r1, r2, r3, reflector *Rotor, s1, s2, s3 rune) *Machine {
 	return &m
 }
 
+func (m *Machine) Init(r1, r2, r3, reflector *Rotor, s1, s2, s3 rune) {
+	m.r1, m.r2, m.r3, m.reflector = r1, r2, r3, reflector
+	m.s1, m.s2, m.s3 = s1, s2, s3
+	m.p1 = s1 - 'A'
+	m.p2 = s2 - 'A'
+	m.p3 = s3 - 'A'
+}
+
+func (m *Machine) Clear() {
+	m.r1, m.r2, m.r3, m.reflector = nil, nil, nil, nil
+	m.s1, m.s2, m.s3 = 'A', 'A', 'A'
+	m.p1, m.p2, m.p3 = 0, 0, 0
+}
+
 /*
 	Given an input letter, the letter that would be pressed on the keyboard,
 	Step() will move the routers and output the resulting letter.

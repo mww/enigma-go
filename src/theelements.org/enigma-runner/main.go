@@ -13,7 +13,6 @@
 	See the License for the specific language governing permissions and
 	limitations under the License.
 */
-
 package main
 
 import (
@@ -21,8 +20,9 @@ import (
 	"container/list"
 	"flag"
 	"fmt"
-	"sort"
-	"sync"
+	"os"
+	"runtime/pprof"
+	"theelements.org/container"
 	"theelements.org/enigma"
 	"theelements.org/frequency"
 )
@@ -44,63 +44,37 @@ type triple struct {
 	a, b, c interface{}
 }
 
-// XXX remove this function
-func (t *triple) String() string {
-	return fmt.Sprintf("I'm a triple %s,%s,%s", t.a, t.b, t.c)
-}
-
 type result struct {
 	message, config string
 	diff            float64
+	// This is just to send machine back to the main loop to be reused.
+	m *enigma.Machine
 }
 
-type results []*result
-
-func (r results) Len() int {
-	return len(r)
-}
-
-func (r results) Swap(i, j int) {
-	r[i], r[j] = r[j], r[i]
-}
-
-func (r results) Less(i, j int) bool {
-	return r[i].diff < r[j].diff
-}
-
-type AtomicInt struct {
-	value int32
-	lock  *sync.Mutex
-}
-
-func NewAtomicInt(value int32) *AtomicInt {
-	i := AtomicInt{}
-	i.value = value
-	i.lock = new(sync.Mutex)
-	return &i
-}
-
-func (i *AtomicInt) Inc() {
-	i.lock.Lock()
-	i.value += 1
-	i.lock.Unlock()
-}
-
-func (i *AtomicInt) Dec() {
-	i.lock.Lock()
-	i.value -= 1
-	i.lock.Unlock()
-}
-
-func (i *AtomicInt) Val() int32 {
-	return i.value
+func (r *result) Less(other container.Comparer) bool {
+	o, ok := other.(*result)
+	if !ok {
+		return false
+	}
+	// The lower the score the better.
+	return r.diff > o.diff
 }
 
 var message = flag.String("message", "", "The encrypted message to crack.")
 var numResults = flag.Int("results", 3, "The number of results to display")
+var cpuprofile = flag.String("cpuprofile", "", "Write CPU profile to file")
 
 func main() {
 	flag.Parse()
+
+	if *cpuprofile != "" {
+		f, err := os.Create(*cpuprofile)
+		if err != nil {
+			fmt.Printf("Not able to create cpuprofile file")
+		}
+		pprof.StartCPUProfile(f)
+		defer pprof.StopCPUProfile()
+	}
 
 	rotors := []*enigma.Rotor{ROTOR_1, ROTOR_2, ROTOR_3}
 	s := make([]interface{}, len(rotors))
@@ -120,8 +94,15 @@ func main() {
 	}
 	startingPositions := permutations(s, true)
 
+	// Create a bunch on empty enigma machines up front.
+	freeList := make(chan *enigma.Machine, 1500000)
+	for i := 0; i < 1250000; i++ {
+		freeList <- new(enigma.Machine)
+	}
+
 	writer := make(chan *result)
-	counter := NewAtomicInt(0)
+	add_counter := 0
+	remove_counter := 0
 	for e1 := rotorPermutations.Front(); e1 != nil; e1 = e1.Next() {
 		rotors := e1.Value.(*triple)
 		r1, r2, r3 := rotors.a.(*enigma.Rotor), rotors.b.(*enigma.Rotor), rotors.c.(*enigma.Rotor)
@@ -132,37 +113,31 @@ func main() {
 				pos := e3.Value.(*triple)
 				p1, p2, p3 := pos.a.(rune), pos.b.(rune), pos.c.(rune)
 
-				m := enigma.NewMachine(r1, r2, r3, reflector, p1, p2, p3)
+				var m *enigma.Machine
+				select {
+				case m = <-freeList:
+					m.Init(r1, r2, r3, reflector, p1, p2, p3)
+				default:
+					m = enigma.NewMachine(r1, r2, r3, reflector, p1, p2, p3)
+				}
 				go run(m, message, writer)
-				counter.Inc()
+				add_counter++
 			}
 		}
 	}
 
-	resultList := make(results, *numResults)
-	size := 0
-	max := 0.0
-	for counter.Val() > 0 {
+	resultList := container.NewSortedFixedSizeList(*numResults)
+	for remove_counter < add_counter {
 		r := <-writer
-		if size < *numResults {
-			resultList[size] = r
-			if r.diff > max {
-				max = r.diff
-			}
-
-			size += 1
-			if size == *numResults {
-				sort.Sort(resultList)
-			}
-
-		} else if r.diff < max {
-			resultList[*numResults-1] = r
-			sort.Sort(resultList)
-		}
-		counter.Dec()
+		resultList.MaybeAdd(r)
+		r.m.Clear()
+		freeList <- r.m
+		remove_counter++
 	}
 
-	for _, r := range resultList {
+	itr := resultList.Iterator()
+	for itr.HasNext() {
+		r := itr.Next().(*result)
 		fmt.Printf("%f %s\n%s\n", r.diff, r.message, r.config)
 	}
 }
@@ -195,5 +170,5 @@ func run(m *enigma.Machine, message *string, writer chan *result) {
 		buf.WriteRune(l)
 		analysis.Add(l)
 	}
-	writer <- &result{buf.String(), m.String(), analysis.Diff()}
+	writer <- &result{buf.String(), m.String(), analysis.Diff(), m}
 }
