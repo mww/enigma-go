@@ -71,11 +71,17 @@ func main() {
 		f, err := os.Create(*cpuprofile)
 		if err != nil {
 			fmt.Printf("Not able to create cpuprofile file")
+			return
 		}
 		pprof.StartCPUProfile(f)
 		defer pprof.StopCPUProfile()
 	}
 
+	result := run(message, *numResults)
+	fmt.Println(result)
+}
+
+func run(encryptedMessage *string, numResults int) string {
 	rotors := []*enigma.Rotor{ROTOR_1, ROTOR_2, ROTOR_3}
 	s := make([]interface{}, len(rotors))
 	for i, v := range rotors {
@@ -100,7 +106,7 @@ func main() {
 		freeList <- new(enigma.Machine)
 	}
 
-	writer := make(chan *result)
+	writer := make(chan *result, 250000)
 	add_counter := 0
 	remove_counter := 0
 	for e1 := rotorPermutations.Front(); e1 != nil; e1 = e1.Next() {
@@ -120,13 +126,13 @@ func main() {
 				default:
 					m = enigma.NewMachine(r1, r2, r3, reflector, p1, p2, p3)
 				}
-				go run(m, message, writer)
+				go runMachine(m, encryptedMessage, writer)
 				add_counter++
 			}
 		}
 	}
 
-	resultList := container.NewSortedFixedSizeList(*numResults)
+	resultList := container.NewSortedFixedSizeList(numResults)
 	for remove_counter < add_counter {
 		r := <-writer
 		resultList.MaybeAdd(r)
@@ -135,11 +141,14 @@ func main() {
 		remove_counter++
 	}
 
+	var buf bytes.Buffer
 	itr := resultList.Iterator()
 	for itr.HasNext() {
 		r := itr.Next().(*result)
-		fmt.Printf("%f %s\n%s\n", r.diff, r.message, r.config)
+		msg := fmt.Sprintf("%f %s\n%s\n", r.diff, r.message, r.config)
+		buf.WriteString(msg)
 	}
+	return buf.String()
 }
 
 func permutations(items []interface{}, duplicates bool) *list.List {
@@ -162,7 +171,7 @@ func permutations(items []interface{}, duplicates bool) *list.List {
 	return result
 }
 
-func run(m *enigma.Machine, message *string, writer chan *result) {
+func runMachine(m *enigma.Machine, message *string, writer chan *result) {
 	var buf bytes.Buffer
 	analysis := frequency.NewAnalysis()
 	for _, c := range *message {
