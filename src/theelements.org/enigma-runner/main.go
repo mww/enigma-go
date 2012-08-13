@@ -20,8 +20,6 @@ import (
 	"container/list"
 	"flag"
 	"fmt"
-	"os"
-	"runtime/pprof"
 	"theelements.org/container"
 	"theelements.org/enigma"
 	"theelements.org/frequency"
@@ -44,15 +42,37 @@ type triple struct {
 	a, b, c interface{}
 }
 
-type result struct {
+type enigmaResult struct {
 	message, config string
 	diff            float64
-	// This is just to send machine back to the main loop to be reused.
-	m *enigma.Machine
 }
 
-func (r *result) Less(other container.Comparer) bool {
-	o, ok := other.(*result)
+var resultFreeList = make(chan *enigmaResult, 2000000)
+
+func populateResultFreeList() {
+	for i := 0; i < 1000000; i++ {
+		resultFreeList <- new(enigmaResult)
+	}
+}
+
+func newResult(message, config string, diff float64) *enigmaResult {
+	var r *enigmaResult
+	select {
+	case r = <-resultFreeList:
+		r.message, r.config, r.diff = message, config, diff
+	default:
+		r = new(enigmaResult)
+		r.message, r.config, r.diff = message, config, diff
+	}
+	return r
+}
+
+func freeResult(result *enigmaResult) {
+	resultFreeList <- result
+}
+
+func (r *enigmaResult) Less(other container.Comparer) bool {
+	o, ok := other.(*enigmaResult)
 	if !ok {
 		return false
 	}
@@ -62,26 +82,18 @@ func (r *result) Less(other container.Comparer) bool {
 
 var message = flag.String("message", "", "The encrypted message to crack.")
 var numResults = flag.Int("results", 3, "The number of results to display")
-var cpuprofile = flag.String("cpuprofile", "", "Write CPU profile to file")
 
 func main() {
 	flag.Parse()
 
-	if *cpuprofile != "" {
-		f, err := os.Create(*cpuprofile)
-		if err != nil {
-			fmt.Printf("Not able to create cpuprofile file")
-			return
-		}
-		pprof.StartCPUProfile(f)
-		defer pprof.StopCPUProfile()
+	results := run(message, *numResults)
+	for _, r := range *results {
+		fmt.Printf("%f %s\n%s\n", r.diff, r.message, r.config)
 	}
-
-	result := run(message, *numResults)
-	fmt.Println(result)
 }
 
-func run(encryptedMessage *string, numResults int) string {
+func run(encryptedMessage *string, numberOfResults int) *[]*enigmaResult {
+	populateResultFreeList()
 	rotors := []*enigma.Rotor{ROTOR_1, ROTOR_2, ROTOR_3}
 	s := make([]interface{}, len(rotors))
 	for i, v := range rotors {
@@ -100,13 +112,7 @@ func run(encryptedMessage *string, numResults int) string {
 	}
 	startingPositions := permutations(s, true)
 
-	// Create a bunch on empty enigma machines up front.
-	freeList := make(chan *enigma.Machine, 1500000)
-	for i := 0; i < 1250000; i++ {
-		freeList <- new(enigma.Machine)
-	}
-
-	writer := make(chan *result, 250000)
+	writer := make(chan *enigmaResult, 250000)
 	add_counter := 0
 	remove_counter := 0
 	for e1 := rotorPermutations.Front(); e1 != nil; e1 = e1.Next() {
@@ -119,36 +125,29 @@ func run(encryptedMessage *string, numResults int) string {
 				pos := e3.Value.(*triple)
 				p1, p2, p3 := pos.a.(rune), pos.b.(rune), pos.c.(rune)
 
-				var m *enigma.Machine
-				select {
-				case m = <-freeList:
-					m.Init(r1, r2, r3, reflector, p1, p2, p3)
-				default:
-					m = enigma.NewMachine(r1, r2, r3, reflector, p1, p2, p3)
-				}
+				m := enigma.NewMachine(r1, r2, r3, reflector, p1, p2, p3)
 				go runMachine(m, encryptedMessage, writer)
 				add_counter++
 			}
 		}
 	}
 
-	resultList := container.NewSortedFixedSizeList(numResults)
+	resultList := container.NewSortedFixedSizeList(numberOfResults)
 	for remove_counter < add_counter {
 		r := <-writer
-		resultList.MaybeAdd(r)
-		r.m.Clear()
-		freeList <- r.m
+		if !resultList.MaybeAdd(r) {
+			freeResult(r)
+		}
 		remove_counter++
 	}
 
-	var buf bytes.Buffer
+	results := make([]*enigmaResult, numberOfResults)
 	itr := resultList.Iterator()
-	for itr.HasNext() {
-		r := itr.Next().(*result)
-		msg := fmt.Sprintf("%f %s\n%s\n", r.diff, r.message, r.config)
-		buf.WriteString(msg)
+	for i := 0; itr.HasNext(); i++ {
+		r := itr.Next().(*enigmaResult)
+		results[i] = r
 	}
-	return buf.String()
+	return &results
 }
 
 func permutations(items []interface{}, duplicates bool) *list.List {
@@ -171,7 +170,7 @@ func permutations(items []interface{}, duplicates bool) *list.List {
 	return result
 }
 
-func runMachine(m *enigma.Machine, message *string, writer chan *result) {
+func runMachine(m *enigma.Machine, message *string, writer chan *enigmaResult) {
 	var buf bytes.Buffer
 	analysis := frequency.NewAnalysis()
 	for _, c := range *message {
@@ -179,5 +178,6 @@ func runMachine(m *enigma.Machine, message *string, writer chan *result) {
 		buf.WriteRune(l)
 		analysis.Add(l)
 	}
-	writer <- &result{buf.String(), m.String(), analysis.Diff(), m}
+	writer <- newResult(buf.String(), m.String(), analysis.Diff())
+	enigma.FreeMachine(m)
 }

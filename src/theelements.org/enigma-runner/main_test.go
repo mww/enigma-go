@@ -17,9 +17,11 @@ package main
 
 import "testing"
 
-func BenchmarkEnigmaRunner(b *testing.B) {
-	msg := "ZTQBLVXKPBPGAVQBRYDYQEZNKRLMZTMRGBJSQKHDPHHNTNIDLYVFCOKZYYSMJFAHQBTEAVFKOXRPSQX"
-	for i := 0; i < b.N; i++ {
-		run(&msg, 3)
+func TestEnigmaRunner01(t *testing.T) {
+	encrypted := "ZTQBLVXKPBPGAVQBRYDYQEZNKRLMZTMRGBJSQKHDPHHNTNIDLYVFCOKZYYSMJFAHQBTEAVFKOXRPSQX"
+	expected := "THISISASLIGHTLYLONGERTESTSOIHAVETOSEEIFICANKEEPWRITINGALONGERSTRINGTOUSEASINPUT"
+	results := run(&encrypted, 3)
+	if (*results)[0].message != expected {
+		t.Errorf("Expected %s, got %s", expected, (*results)[0].message)
 	}
 }

@@ -31,26 +31,40 @@ type Machine struct {
 	p1, p2, p3 int32
 }
 
-func NewMachine(r1, r2, r3, reflector *Rotor, s1, s2, s3 rune) *Machine {
-	m := Machine{r1, r2, r3, reflector, s1, s2, s3, 0, 0, 0}
-	m.p1 = s1 - 'A'
-	m.p2 = s2 - 'A'
-	m.p3 = s3 - 'A'
-	return &m
+var freeList = make(chan *Machine, 1000000)
+
+func populateMachineFreeList() {
+	for i := 0; i < 200000; i++ {
+		freeList <- new(Machine)
+	}
 }
 
-func (m *Machine) Init(r1, r2, r3, reflector *Rotor, s1, s2, s3 rune) {
+func FreeMachine(m *Machine) {
+	m.r1, m.r2, m.r3, m.reflector = nil, nil, nil, nil
+	m.s1, m.s2, m.s3 = 'A', 'A', 'A'
+	m.p1, m.p2, m.p3 = 0, 0, 0
+	freeList <- m
+}
+
+func NewMachine(r1, r2, r3, reflector *Rotor, s1, s2, s3 rune) *Machine {
+	var m *Machine
+	select {
+	case m = <-freeList:
+		m.init(r1, r2, r3, reflector, s1, s2, s3)
+	default:
+		populateMachineFreeList()
+		m = new(Machine)
+		m.init(r1, r2, r3, reflector, s1, s2, s2)
+	}
+	return m
+}
+
+func (m *Machine) init(r1, r2, r3, reflector *Rotor, s1, s2, s3 rune) {
 	m.r1, m.r2, m.r3, m.reflector = r1, r2, r3, reflector
 	m.s1, m.s2, m.s3 = s1, s2, s3
 	m.p1 = s1 - 'A'
 	m.p2 = s2 - 'A'
 	m.p3 = s3 - 'A'
-}
-
-func (m *Machine) Clear() {
-	m.r1, m.r2, m.r3, m.reflector = nil, nil, nil, nil
-	m.s1, m.s2, m.s3 = 'A', 'A', 'A'
-	m.p1, m.p2, m.p3 = 0, 0, 0
 }
 
 /*
