@@ -20,9 +20,10 @@ import (
 	"container/list"
 	"flag"
 	"fmt"
-	"theelements.org/container"
-	"theelements.org/enigma"
-	"theelements.org/frequency"
+	enigma "github.com/mww/enigma-go"
+	"github.com/mww/enigma-go/container"
+	"github.com/mww/enigma-go/frequency"
+	"os"
 )
 
 var ROTOR_1 = enigma.NewRotor("Rotor 1, 1930", "EKMFLGDQVZNTOWYHXUSPAIBRCJ", 'Q')
@@ -85,6 +86,11 @@ var numResults = flag.Int("results", 3, "The number of results to display")
 
 func main() {
 	flag.Parse()
+
+	if len(*message) < 1 {
+		fmt.Println("usage: enigma --message=MESSAGE")
+		os.Exit(-1)
+	}
 
 	results := run(message, *numResults)
 	for _, r := range *results {

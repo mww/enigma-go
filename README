@@ -1,2 +1,9 @@
 A simple simulation of an Enigma machine written as a complement to the one I
 wrote in Java, which can be found at https://github.com/mww/enigma-java/.
+
+Try it with:
+$ cd cmd/enigma
+$ ./enigma --message=ZTQBLVXKPBPGAVQBRYDYQEZNKRLMZTMRGBJSQKHDPHHNTNIDLYVFCOKZYYSMJFAHQBTEAVFKOXRPSQX
+
+which should decrypt to:
+THISISASLIGHTLYLONGERTESTSOIHAVETOSEEIFICANKEEPWRITINGALONGERSTRINGTOUSEASINPUT
