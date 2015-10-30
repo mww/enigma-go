@@ -17,7 +17,11 @@ package main
 
 import "testing"
 
-func TestEnigmaRunner01(t *testing.T) {
+func TestEnigmaRunner(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping full test in short mode.")
+	}
+
 	encrypted := "ZTQBLVXKPBPGAVQBRYDYQEZNKRLMZTMRGBJSQKHDPHHNTNIDLYVFCOKZYYSMJFAHQBTEAVFKOXRPSQX"
 	expected := "THISISASLIGHTLYLONGERTESTSOIHAVETOSEEIFICANKEEPWRITINGALONGERSTRINGTOUSEASINPUT"
 	results := run(&encrypted, 3)
