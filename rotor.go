@@ -32,12 +32,42 @@ func NewRotor(description, mapping string, turnoverLetter rune) *Rotor {
 	return &r
 }
 
+func Rotor1() *Rotor {
+	return NewRotor("Rotor 1, 1930", "EKMFLGDQVZNTOWYHXUSPAIBRCJ", 'Q')
+}
+
+func Rotor2() *Rotor {
+	return NewRotor("Rotor 2, 1930", "AJDKSIRUXBLHWTMCQGZNPYFVOE", 'E')
+}
+
+func Rotor3() *Rotor {
+	return NewRotor("Rotor 3, 1930", "BDFHJLCPRTXVZNYEIWGAKMUSQO", 'V')
+}
+
+func Rotor4() *Rotor {
+	return NewRotor("Rotor 4, 1938", "ESOVPZJAYQUIRHXLNFTGKDCMWB", 'J')
+}
+
+func Rotor5() *Rotor {
+	return NewRotor("Rotor 5, 1938", "VZBRGITYUPSDNHLXAWMJQOFECK", 'Z')
+}
+
+func ReflectorA() *Rotor {
+	return NewRotor("Reflector A", "EJMZALYXVBWFCRQUONTSPIKHGD", 'Z')
+}
+
+func ReflectorB() *Rotor {
+	return NewRotor("Reflector B", "YRUHQSLDPXNGOKMIEBFZCWVJAT", 'Z')
+}
+
+func ReflectorC() *Rotor {
+	return NewRotor("Reflector C", "FVPJIAOYEDRZXWGCTKUQSBNMHL", 'Z')
+}
+
 func buildForward(mapping string) map[rune]rune {
 	m := make(map[rune]rune)
-	i := 0
-	for _, char := range mapping {
+	for i, char := range mapping {
 		m[LETTERS[i]] = char
-		i++
 	}
 
 	return m

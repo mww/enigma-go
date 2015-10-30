@@ -17,24 +17,14 @@ package main
 
 import (
 	"bytes"
-	"container/list"
 	"flag"
 	"fmt"
+	"os"
+
 	enigma "github.com/mww/enigma-go"
 	"github.com/mww/enigma-go/container"
 	"github.com/mww/enigma-go/frequency"
-	"os"
 )
-
-var ROTOR_1 = enigma.NewRotor("Rotor 1, 1930", "EKMFLGDQVZNTOWYHXUSPAIBRCJ", 'Q')
-var ROTOR_2 = enigma.NewRotor("Rotor 2, 1930", "AJDKSIRUXBLHWTMCQGZNPYFVOE", 'E')
-var ROTOR_3 = enigma.NewRotor("Rotor 3, 1930", "BDFHJLCPRTXVZNYEIWGAKMUSQO", 'V')
-var ROTOR_4 = enigma.NewRotor("Rotor 4, 1938", "ESOVPZJAYQUIRHXLNFTGKDCMWB", 'J')
-var ROTOR_5 = enigma.NewRotor("Rotor 5, 1938", "VZBRGITYUPSDNHLXAWMJQOFECK", 'Z')
-
-var REFLECTOR_A = enigma.NewRotor("Reflector A", "EJMZALYXVBWFCRQUONTSPIKHGD", 'Z')
-var REFLECTOR_B = enigma.NewRotor("Reflector B", "YRUHQSLDPXNGOKMIEBFZCWVJAT", 'Z')
-var REFLECTOR_C = enigma.NewRotor("Reflector C", "FVPJIAOYEDRZXWGCTKUQSBNMHL", 'Z')
 
 /*
 	Simple container to hold configuration data.
@@ -62,8 +52,11 @@ func newResult(message, config string, diff float64) *enigmaResult {
 	case r = <-resultFreeList:
 		r.message, r.config, r.diff = message, config, diff
 	default:
-		r = new(enigmaResult)
-		r.message, r.config, r.diff = message, config, diff
+		r = &enigmaResult{
+			message: message,
+			config:  config,
+			diff:    diff,
+		}
 	}
 	return r
 }
@@ -100,17 +93,14 @@ func main() {
 
 func run(encryptedMessage *string, numberOfResults int) *[]*enigmaResult {
 	populateResultFreeList()
-	rotors := []*enigma.Rotor{ROTOR_1, ROTOR_2, ROTOR_3}
+	rotors := []*enigma.Rotor{enigma.Rotor1(), enigma.Rotor2(), enigma.Rotor3()}
 	s := make([]interface{}, len(rotors))
 	for i, v := range rotors {
 		s[i] = v
 	}
 	rotorPermutations := permutations(s, false)
 
-	reflectors := list.New()
-	reflectors.PushBack(REFLECTOR_A)
-	reflectors.PushBack(REFLECTOR_B)
-	reflectors.PushBack(REFLECTOR_C)
+	reflectors := []*enigma.Rotor{enigma.ReflectorA(), enigma.ReflectorB(), enigma.ReflectorC()}
 
 	s = make([]interface{}, len(enigma.LETTERS))
 	for i, v := range enigma.LETTERS {
@@ -121,14 +111,11 @@ func run(encryptedMessage *string, numberOfResults int) *[]*enigmaResult {
 	writer := make(chan *enigmaResult, 250000)
 	add_counter := 0
 	remove_counter := 0
-	for e1 := rotorPermutations.Front(); e1 != nil; e1 = e1.Next() {
-		rotors := e1.Value.(*triple)
+	for _, rotors := range rotorPermutations {
 		r1, r2, r3 := rotors.a.(*enigma.Rotor), rotors.b.(*enigma.Rotor), rotors.c.(*enigma.Rotor)
 
-		for e2 := reflectors.Front(); e2 != nil; e2 = e2.Next() {
-			reflector := e2.Value.(*enigma.Rotor)
-			for e3 := startingPositions.Front(); e3 != nil; e3 = e3.Next() {
-				pos := e3.Value.(*triple)
+		for _, reflector := range reflectors {
+			for _, pos := range startingPositions {
 				p1, p2, p3 := pos.a.(rune), pos.b.(rune), pos.c.(rune)
 
 				m := enigma.NewMachine(r1, r2, r3, reflector, p1, p2, p3)
@@ -156,8 +143,23 @@ func run(encryptedMessage *string, numberOfResults int) *[]*enigmaResult {
 	return &results
 }
 
-func permutations(items []interface{}, duplicates bool) *list.List {
-	result := list.New()
+// Calculate all of the N choose 3 permutations.
+func permutations(items []interface{}, duplicates bool) []*triple {
+	// TODO(mww): Calculate this dynamically
+	var size int
+	switch len(items) {
+	case 3:
+		size = 6
+	case 4:
+		size = 24
+	case 5:
+		size = 60
+	default:
+		size = 17576 // a large value for 26 choose 3
+	}
+	// Make a large buffer so we don't have to resize it much. 16000 will be big
+	// enough for 26 choose 3
+	result := make([]*triple, 0, size)
 	for _, a := range items {
 		for _, b := range items {
 			if !duplicates && a == b {
@@ -169,7 +171,7 @@ func permutations(items []interface{}, duplicates bool) *list.List {
 					continue
 				}
 
-				result.PushBack(&triple{a, b, c})
+				result = append(result, &triple{a, b, c})
 			}
 		}
 	}
@@ -184,6 +186,7 @@ func runMachine(m *enigma.Machine, message *string, writer chan *enigmaResult) {
 		buf.WriteRune(l)
 		analysis.Add(l)
 	}
+
 	writer <- newResult(buf.String(), m.String(), analysis.Diff())
 	enigma.FreeMachine(m)
 }

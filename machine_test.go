@@ -17,14 +17,6 @@ package enigma
 
 import "testing"
 
-func createTestMachine(p1, p2, p3 rune) *Machine {
-	r1 := NewRotor("Rotor 1, 1930", "EKMFLGDQVZNTOWYHXUSPAIBRCJ", 'Q')
-	r2 := NewRotor("Rotor 2, 1930", "AJDKSIRUXBLHWTMCQGZNPYFVOE", 'E')
-	r3 := NewRotor("Rotor 3, 1930", "BDFHJLCPRTXVZNYEIWGAKMUSQO", 'V')
-	reflector := NewRotor("Reflector B", "YRUHQSLDPXNGOKMIEBFZCWVJAT", 'Z')
-	return NewMachine(r1, r2, r3, reflector, p1, p2, p3)
-}
-
 func assertEqualsInt32(t *testing.T, expected, actual int32) {
 	if expected != actual {
 		t.Errorf("Expected %d, got %d\n", expected, actual)
@@ -44,22 +36,17 @@ func assertRotorPositions(t *testing.T, e1, e2, e3 int32, m *Machine) {
 }
 
 func TestGetOutputIndex(t *testing.T) {
-	r1 := NewRotor("Rotor 1, 1930", "EKMFLGDQVZNTOWYHXUSPAIBRCJ", 'Q')
-	r2 := NewRotor("Rotor 2, 1930", "AJDKSIRUXBLHWTMCQGZNPYFVOE", 'E')
-	r3 := NewRotor("Rotor 3, 1930", "BDFHJLCPRTXVZNYEIWGAKMUSQO", 'V')
-	reflector := NewRotor("Reflector B", "YRUHQSLDPXNGOKMIEBFZCWVJAT", 'Z')
-
-	assertEqualsInt32(t, 2, getOutputIndex(r3, 1, 'A'-'A', false))
-	assertEqualsInt32(t, 3, getOutputIndex(r2, 0, 2, false))
-	assertEqualsInt32(t, 5, getOutputIndex(r1, 0, 3, false))
-	assertEqualsInt32(t, 18, getOutputIndex(reflector, 0, 5, false))
-	assertEqualsInt32(t, 18, getOutputIndex(r1, 0, 18, true))
-	assertEqualsInt32(t, 4, getOutputIndex(r2, 0, 18, true))
-	assertEqualsInt32(t, 1, getOutputIndex(r3, 1, 4, true))
+	assertEqualsInt32(t, 2, getOutputIndex(Rotor3(), 1, 'A'-'A', false))
+	assertEqualsInt32(t, 3, getOutputIndex(Rotor2(), 0, 2, false))
+	assertEqualsInt32(t, 5, getOutputIndex(Rotor1(), 0, 3, false))
+	assertEqualsInt32(t, 18, getOutputIndex(ReflectorB(), 0, 5, false))
+	assertEqualsInt32(t, 18, getOutputIndex(Rotor1(), 0, 18, true))
+	assertEqualsInt32(t, 4, getOutputIndex(Rotor2(), 0, 18, true))
+	assertEqualsInt32(t, 1, getOutputIndex(Rotor3(), 1, 4, true))
 }
 
 func TestMoveRotor(t *testing.T) {
-	m := createTestMachine('A', 'A', 'A')
+	m := NewMachine(Rotor1(), Rotor2(), Rotor3(), ReflectorB(), 'A', 'A', 'A')
 
 	assertRotorPositions(t, 0, 0, 0, m)
 	m.moveRotors()
@@ -69,7 +56,7 @@ func TestMoveRotor(t *testing.T) {
 	m.moveRotors()
 	assertRotorPositions(t, 0, 0, 3, m)
 
-	m = createTestMachine('Q', 'D', 'U')
+	m = NewMachine(Rotor1(), Rotor2(), Rotor3(), ReflectorB(), 'Q', 'D', 'U')
 	assertRotorPositions(t, 16, 3, 20, m)
 	m.moveRotors()
 	assertRotorPositions(t, 16, 3, 21, m)
@@ -86,18 +73,28 @@ func TestMoveRotor(t *testing.T) {
 }
 
 func TestStep(t *testing.T) {
-	m := createTestMachine('A', 'A', 'A')
+	m := NewMachine(Rotor1(), Rotor2(), Rotor3(), ReflectorB(), 'A', 'A', 'A')
 	assertEqualsRune(t, 'B', m.Step('A'))
 	assertEqualsRune(t, 'H', m.Step('P'))
 	assertEqualsRune(t, 'S', m.Step('P'))
 	assertEqualsRune(t, 'D', m.Step('L'))
 	assertEqualsRune(t, 'R', m.Step('E'))
 
-	m = createTestMachine('Q', 'D', 'U')
-	assertEqualsRune(t, 'C', m.Step('O'))
-	assertEqualsRune(t, 'X', m.Step('R'))
-	assertEqualsRune(t, 'N', m.Step('A'))
-	assertEqualsRune(t, 'E', m.Step('N'))
-	assertEqualsRune(t, 'M', m.Step('G'))
-	assertEqualsRune(t, 'W', m.Step('E'))
+	m = NewMachine(Rotor1(), Rotor2(), Rotor3(), ReflectorB(), 'A', 'D', 'U')
+	assertEqualsRune(t, 'W', m.Step('O'))
+	assertEqualsRune(t, 'V', m.Step('R'))
+	assertEqualsRune(t, 'I', m.Step('A'))
+	assertEqualsRune(t, 'D', m.Step('N'))
+	assertEqualsRune(t, 'E', m.Step('G'))
+	assertEqualsRune(t, 'O', m.Step('E'))
+
+	m = NewMachine(Rotor3(), Rotor1(), Rotor2(), ReflectorB(), 'V', 'P', 'C')
+	assertEqualsRune(t, 'K', m.Step('F'))
+	assertEqualsRune(t, 'V', m.Step('O'))
+	assertEqualsRune(t, 'Z', m.Step('O'))
+	assertEqualsRune(t, 'J', m.Step('T'))
+	assertEqualsRune(t, 'I', m.Step('B'))
+	assertEqualsRune(t, 'T', m.Step('A'))
+	assertEqualsRune(t, 'Y', m.Step('L'))
+	assertEqualsRune(t, 'W', m.Step('L'))
 }
