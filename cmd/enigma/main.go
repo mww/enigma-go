@@ -109,8 +109,8 @@ func run(encryptedMessage *string, numberOfResults int) *[]*enigmaResult {
 	startingPositions := permutations(s, true)
 
 	writer := make(chan *enigmaResult, 250000)
-	add_counter := 0
-	remove_counter := 0
+	addCounter := 0
+	removeCounter := 0
 	for _, rotors := range rotorPermutations {
 		r1, r2, r3 := rotors.a.(*enigma.Rotor), rotors.b.(*enigma.Rotor), rotors.c.(*enigma.Rotor)
 
@@ -120,18 +120,18 @@ func run(encryptedMessage *string, numberOfResults int) *[]*enigmaResult {
 
 				m := enigma.NewMachine(r1, r2, r3, reflector, p1, p2, p3)
 				go runMachine(m, encryptedMessage, writer)
-				add_counter++
+				addCounter++
 			}
 		}
 	}
 
 	resultList := container.NewSortedFixedSizeList(numberOfResults)
-	for remove_counter < add_counter {
+	for removeCounter < addCounter {
 		r := <-writer
 		if !resultList.MaybeAdd(r) {
 			freeResult(r)
 		}
-		remove_counter++
+		removeCounter++
 	}
 
 	results := make([]*enigmaResult, numberOfResults)

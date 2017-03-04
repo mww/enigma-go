@@ -74,14 +74,9 @@ func (l *SortedFixedSizeList) MaybeAdd(item Comparer) bool {
 
 			l.addToList(toAdd)
 			return true // Because we added the item
-		} else {
-			return false // Because we didn't add the item
 		}
+		return false // Because we didn't add the item
 	}
-
-	// We should never reach this point.
-	// TODO(mww): Add some logging
-	return false
 }
 
 func (l *SortedFixedSizeList) addToList(toAdd *node) {
